@@ -1,0 +1,7 @@
+POST http://localhost:8080/realms/yt-expense-tracker/protocol/openid-connect/token HTTP/1.1
+content-type: application/x-www-form-urlencoded
+
+grant_type=password
+&username=joao@test.com
+&password=admin@123
+&client_id=my-app
