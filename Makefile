@@ -3,3 +3,6 @@ build:
 
 run: build
 	@./bin/yt-expense-tracker
+
+test:
+	@go test ./...
