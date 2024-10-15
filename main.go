@@ -2,18 +2,24 @@ package main
 
 import (
 	"fmt"
-	"log"
-	"os"
+	"net/http"
 
 	"github.com/jckonewalik/yt-expense-tracker/services/auth"
+	"github.com/jckonewalik/yt-expense-tracker/services/httputils"
+	"github.com/jckonewalik/yt-expense-tracker/types"
 )
 
 func main() {
-	tokenString := "eyJhbGciOiJSUzI1NiIsInR5cCIgOiAiSldUIiwia2lkIiA6ICJ6NkMyUXNXc1BTMnFoWVJpZUtrWWtwQ0huQ0tGWk90bnF2TEUwaHJucTVRIn0.eyJleHAiOjE3Mjg5OTQ3ODAsImlhdCI6MTcyODk5NDQ4MCwianRpIjoiOTgyMDc2Y2MtMGM1Ni00ZmNhLThlYmItZjhhMWVkZGE5NGJiIiwiaXNzIjoiaHR0cDovL2xvY2FsaG9zdDo4MDgwL3JlYWxtcy95dC1leHBlbnNlLXRyYWNrZXIiLCJhdWQiOiJhY2NvdW50Iiwic3ViIjoiOWVmZWUyNWQtMTk2Zi00M2JhLTk2OTAtNWIwN2Y4NTI2YzQ0IiwidHlwIjoiQmVhcmVyIiwiYXpwIjoibXktYXBwIiwic2lkIjoiNzgzNGE5ODctMzQ2Ny00ZTEyLTljMTItZjAzMzMzNDliODBlIiwiYWNyIjoiMSIsImFsbG93ZWQtb3JpZ2lucyI6WyIvKiJdLCJyZWFsbV9hY2Nlc3MiOnsicm9sZXMiOlsiZGVmYXVsdC1yb2xlcy15dC1leHBlbnNlLXRyYWNrZXIiLCJvZmZsaW5lX2FjY2VzcyIsInVtYV9hdXRob3JpemF0aW9uIl19LCJyZXNvdXJjZV9hY2Nlc3MiOnsiYWNjb3VudCI6eyJyb2xlcyI6WyJtYW5hZ2UtYWNjb3VudCIsIm1hbmFnZS1hY2NvdW50LWxpbmtzIiwidmlldy1wcm9maWxlIl19fSwic2NvcGUiOiJlbWFpbCBwcm9maWxlIiwiZW1haWxfdmVyaWZpZWQiOmZhbHNlLCJuYW1lIjoiSm9hbyBTb3V6YSIsInByZWZlcnJlZF91c2VybmFtZSI6ImpvYW8iLCJnaXZlbl9uYW1lIjoiSm9hbyIsImZhbWlseV9uYW1lIjoiU291emEiLCJlbWFpbCI6ImpvYW9AdGVzdC5jb20ifQ.XydMlxraIFQPJo8B-KjQ0R2WV9lqrTkTvyLbO0KkgTpGPdCq9Xs5R_c4axhXF9I9XdPXdJvZtCXFC-_EIElRSvAvXlft0FFPcrmhYezp_Dk0BOorz2hcsGbwQEM4LdMFJI0_8GQM92W0dljyMTeloOPY0B_DY3tZS8609UErB_Y4NLleCMtdL1bvZ-FSIWP-TaVzdk-mJcksAXgNOXSrYjaWNIefYVIB_tn_YB7iEp5YcMkzPvzHQfOwc09aYdiBfwQMdlKCEo0ODrh9y0jmRqN1LM35mfO8vmocTiSs1Q6Je5X3wudkuwBO-TiHU1k_9N5vycgKlvDVYHLwlcd8gA"
-	profile, err := auth.ValidateToken(tokenString, os.Getenv("PUBLIC_KEY"))
-	if err != nil {
-		log.Panic(err)
-	}
-	fmt.Println(profile.Name)
-	fmt.Println(profile.Email)
+
+	route := http.NewServeMux()
+	route.HandleFunc("GET /hello", auth.WithJWT(handleHello))
+
+	v1 := http.StripPrefix("/api/v1", route)
+
+	http.ListenAndServe(":3000", v1)
+}
+
+func handleHello(w http.ResponseWriter, r *http.Request) {
+	name := r.Context().Value(types.UserName)
+	httputils.WriteJSON(w, http.StatusOK, fmt.Sprintf("Hello, %s", name))
 }

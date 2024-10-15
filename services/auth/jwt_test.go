@@ -26,7 +26,7 @@ func TestValidateToken(t *testing.T) {
 
 	secret := base64.StdEncoding.EncodeToString(pubKey)
 
-	p, err := ValidateToken(stringToken, secret)
+	p, err := validateToken(stringToken, secret)
 
 	if err != nil {
 		t.Fatalf("not expecting an error at this point: %v", err)
