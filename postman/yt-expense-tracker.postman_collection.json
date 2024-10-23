@@ -1,0 +1,115 @@
+{
+	"info": {
+		"_postman_id": "33810ced-6bee-4f9e-b571-d5c4663351d2",
+		"name": "yt-expense-tracker",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "2771844"
+	},
+	"item": [
+		{
+			"name": "hello",
+			"event": [
+				{
+					"listen": "prerequest",
+					"script": {
+						"exec": [
+							"pm.sendRequest({\r",
+							"    method: 'POST',\r",
+							"    url: 'http://localhost:8080/realms/yt-expense-tracker/protocol/openid-connect/token',\r",
+							"    body: {\r",
+							"        mode: 'urlencoded',\r",
+							"        urlencoded: [\r",
+							"            { key: 'grant_type', value: 'password', disabled: false },\r",
+							"            { key: 'username', value: 'joao@test.com', disabled: false },\r",
+							"            { key: 'password', value: 'admin@123', disabled: false },\r",
+							"            { key: 'client_id', value: 'my-app', disabled: false },\r",
+							"            \r",
+							"        ]\r",
+							"    },\r",
+							"    headers: {\r",
+							"        'content-type': 'application/x-www-form-urlencoded'\r",
+							"    }}, function (err, res) {\r",
+							"    if (err) {\r",
+							"        console.error(err);\r",
+							"        return;\r",
+							"    }\r",
+							"    const jsonResponse = res.json();\r",
+							"    console.log(jsonResponse)\r",
+							"    const token = jsonResponse.access_token;\r",
+							"    \r",
+							"    pm.environment.set('authToken', token);\r",
+							"})"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Cache-Control",
+						"value": "no-cache",
+						"name": "cache-control",
+						"type": "text"
+					},
+					{
+						"key": "Postman-Token",
+						"value": "<calculated when request is sent>",
+						"name": "postman-token",
+						"type": "text"
+					},
+					{
+						"key": "Host",
+						"value": "<calculated when request is sent>",
+						"name": "host",
+						"type": "text"
+					},
+					{
+						"key": "User-Agent",
+						"value": "PostmanRuntime/7.39.1",
+						"name": "user-agent",
+						"type": "text"
+					},
+					{
+						"key": "Accept",
+						"value": "*/*",
+						"name": "accept",
+						"type": "text"
+					},
+					{
+						"key": "Accept-Encoding",
+						"value": "gzip, deflate, br",
+						"name": "accept-encoding",
+						"type": "text"
+					},
+					{
+						"key": "Connection",
+						"value": "keep-alive",
+						"name": "connection",
+						"type": "text"
+					},
+					{
+						"key": "Authorization",
+						"value": "Bearer {{authToken}}",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "http://localhost:3000/api/v1/hello",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "3000",
+					"path": [
+						"api",
+						"v1",
+						"hello"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
