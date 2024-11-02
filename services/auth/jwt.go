@@ -6,10 +6,10 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/jckonewalik/yt-expense-tracker/config"
 	"github.com/jckonewalik/yt-expense-tracker/services/httputils"
 	"github.com/jckonewalik/yt-expense-tracker/types"
 )
@@ -54,7 +54,7 @@ func WithJWT(handleFunc http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		publicKey := os.Getenv("PUBLIC_KEY")
+		publicKey := config.Env.JwtSecret
 		p, err := validateToken(bearerToken[1], publicKey)
 
 		if err != nil {
