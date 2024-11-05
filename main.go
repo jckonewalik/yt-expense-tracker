@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -27,6 +28,12 @@ func handleHello(w http.ResponseWriter, r *http.Request) {
 
 func handleSignup(w http.ResponseWriter, r *http.Request) {
 	// decode payload
+	var input types.SignUpInput
+	err := json.NewDecoder(r.Body).Decode(&input)
+	if err != nil {
+		httputils.WriteError(w, http.StatusBadRequest, fmt.Errorf("invalid input"))
+		return
+	}
 
 	// validate payload
 
