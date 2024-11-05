@@ -4,13 +4,27 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"reflect"
+	"strings"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/jckonewalik/yt-expense-tracker/services/auth"
 	"github.com/jckonewalik/yt-expense-tracker/services/httputils"
 	"github.com/jckonewalik/yt-expense-tracker/types"
 )
 
+var validate *validator.Validate
+
 func main() {
+
+	validate = validator.New(validator.WithRequiredStructEnabled())
+	validate.RegisterTagNameFunc(func(fld reflect.StructField) string {
+		name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
+		if name == "-" {
+			return ""
+		}
+		return name
+	})
 
 	route := http.NewServeMux()
 	route.HandleFunc("GET /hello", auth.WithJWT(handleHello))
@@ -36,6 +50,20 @@ func handleSignup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// validate payload
+	err = validate.Struct(input)
+	if err != nil {
+		var payloadErrs = []error{}
+		for _, err := range err.(validator.ValidationErrors) {
+			payloadErrs = append(payloadErrs, fmt.Errorf("%s: %s", err.Field(), err.Tag()))
+		}
+		httputils.WriteErrors(w, http.StatusBadRequest, payloadErrs)
+		return
+	}
+
+	if input.Password != input.PasswordConfirmation {
+		httputils.WriteError(w, http.StatusBadRequest, fmt.Errorf("password confirmation doesn't match"))
+		return
+	}
 
 	// check if user already exists
 
