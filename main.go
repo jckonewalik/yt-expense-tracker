@@ -5,8 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -15,6 +13,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/jckonewalik/yt-expense-tracker/config"
+	"github.com/jckonewalik/yt-expense-tracker/logger"
 	"github.com/jckonewalik/yt-expense-tracker/services/auth"
 	"github.com/jckonewalik/yt-expense-tracker/services/httputils"
 	"github.com/jckonewalik/yt-expense-tracker/types"
@@ -40,7 +39,10 @@ func main() {
 
 	v1 := http.StripPrefix("/api/v1", route)
 
-	http.ListenAndServe(":3000", v1)
+	err := http.ListenAndServe(":3000", v1)
+	if err != nil {
+		logger.Log.Error.Printf("error starting server: %v", err)
+	}
 }
 
 func handleHello(w http.ResponseWriter, r *http.Request) {
@@ -50,6 +52,10 @@ func handleHello(w http.ResponseWriter, r *http.Request) {
 
 type TokenResponse struct {
 	AccessToken string `json:"access_token"`
+}
+
+type KeycloakErrorResponse struct {
+	Message string `json:"errorMessage"`
 }
 
 func handleSignup(w http.ResponseWriter, r *http.Request) {
@@ -81,13 +87,23 @@ func handleSignup(w http.ResponseWriter, r *http.Request) {
 
 	db, err := sql.Open("postgres", fmt.Sprintf("postgres://%s:%s@localhost:5432/%s?sslmode=disable", "ytexpensestracker", "admin@123", "ytexpensestracker"))
 	if err != nil {
-		log.Fatal(err)
+		logger.Log.Error.Printf("error getting db access. %v", err)
+		httputils.WriteError(w, http.StatusInternalServerError, fmt.Errorf("something wrong happend"))
+		return
+	}
+	err = db.Ping()
+	if err != nil {
+		logger.Log.Error.Printf("error pinging db. %v", err)
+		httputils.WriteError(w, http.StatusInternalServerError, fmt.Errorf("something wrong happend"))
+		return
 	}
 	defer db.Close()
 
 	rows, err := db.Query("SELECT 1 FROM users WHERE email = $1 OR login = $2", input.Email, input.Login)
 	if err != nil {
-		log.Fatal(err)
+		logger.Log.Error.Printf("error quering users table. %v", err)
+		httputils.WriteError(w, http.StatusInternalServerError, fmt.Errorf("something wrong happend"))
+		return
 	}
 	defer rows.Close()
 	if rows.Next() {
@@ -98,7 +114,9 @@ func handleSignup(w http.ResponseWriter, r *http.Request) {
 	// persist user in database
 	_, err = db.Exec("INSERT INTO users (login, email, first_name, last_name) VALUES ($1, $2, $3, $4)", input.Login, input.Email, input.FirstName, input.LastName)
 	if err != nil {
-		log.Fatal(err)
+		logger.Log.Error.Printf("error inserting user. payload: %v. error: %v", input, err)
+		httputils.WriteError(w, http.StatusInternalServerError, fmt.Errorf("something wrong happend"))
+		return
 	}
 
 	// create user in keycloak
@@ -111,17 +129,33 @@ func handleSignup(w http.ResponseWriter, r *http.Request) {
 	req, err := http.NewRequest(http.MethodPost, "http://localhost:8080/realms/yt-expense-tracker/protocol/openid-connect/token",
 		strings.NewReader(dataReader))
 	if err != nil {
-		log.Fatal(err)
+		logger.Log.Error.Printf("error getting keycloak access token. %v", err)
+		httputils.WriteError(w, http.StatusInternalServerError, fmt.Errorf("something wrong happend"))
+		return
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	client := http.Client{
 		Timeout: 30 * time.Second,
 	}
 	res, err := client.Do(req)
-	if err != nil || res.StatusCode != 200 {
-		log.Fatal(err)
+	if err != nil {
+		logger.Log.Error.Printf("error getting keycloak access token. %v", err)
+		httputils.WriteError(w, http.StatusInternalServerError, fmt.Errorf("something wrong happend"))
+		return
 	}
 	defer res.Body.Close()
+	if res.StatusCode != 200 {
+		var resp KeycloakErrorResponse
+		err := json.NewDecoder(res.Body).Decode(&resp)
+		if err != nil {
+			logger.Log.Error.Printf("error reading keycloak token response. %v", err)
+			httputils.WriteError(w, http.StatusInternalServerError, fmt.Errorf("something wrong happend"))
+			return
+		}
+		logger.Log.Error.Printf("error getting keycloak access token. %v", resp.Message)
+		httputils.WriteError(w, http.StatusInternalServerError, fmt.Errorf("something wrong happend"))
+		return
+	}
 
 	var token TokenResponse
 	json.NewDecoder(res.Body).Decode(&token)
@@ -130,28 +164,39 @@ func handleSignup(w http.ResponseWriter, r *http.Request) {
 		"firstName": input.FirstName, "lastName": input.LastName, "emailVerified": false, "enabled": true, "requiredActions": []any{}, "groups": []any{}}
 	jsonBody, err := json.Marshal(userPayload)
 	if err != nil {
-		log.Fatal(err)
+		logger.Log.Error.Printf("error encoding create user payload: %v", err)
+		httputils.WriteError(w, http.StatusInternalServerError, fmt.Errorf("something wrong happend"))
+		return
 	}
 	bodyReader := bytes.NewReader(jsonBody)
 	req, err = http.NewRequest(http.MethodPost, "http://localhost:8080/admin/realms/yt-expense-tracker/users", bodyReader)
 	if err != nil {
-		log.Fatal(err)
+		logger.Log.Error.Printf("error creating keycloak users request: %v", err)
+		httputils.WriteError(w, http.StatusInternalServerError, fmt.Errorf("something wrong happend"))
+		return
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.AccessToken))
 
 	res, err = client.Do(req)
 	if err != nil {
-		log.Fatal(err)
+		logger.Log.Error.Printf("error requesting keycloak to create user: %v", err)
+		httputils.WriteError(w, http.StatusInternalServerError, fmt.Errorf("something wrong happend"))
+		return
 	}
 	defer res.Body.Close()
-
-	b, err := io.ReadAll(res.Body)
-	if err != nil {
-		log.Fatalln(err)
+	if res.StatusCode != 201 {
+		var resp KeycloakErrorResponse
+		err := json.NewDecoder(res.Body).Decode(&resp)
+		if err != nil {
+			logger.Log.Error.Printf("error reading keycloak users response. %v", err)
+			httputils.WriteError(w, http.StatusInternalServerError, fmt.Errorf("something wrong happend"))
+			return
+		}
+		logger.Log.Error.Printf("error creating keycloak user. %v", resp.Message)
+		httputils.WriteError(w, http.StatusInternalServerError, fmt.Errorf("something wrong happend"))
+		return
 	}
-
-	fmt.Println(string(b))
 
 	// return response
 	httputils.WriteJSON(w, http.StatusCreated, nil)
