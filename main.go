@@ -1,8 +1,10 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"reflect"
 	"strings"
@@ -11,6 +13,7 @@ import (
 	"github.com/jckonewalik/yt-expense-tracker/services/auth"
 	"github.com/jckonewalik/yt-expense-tracker/services/httputils"
 	"github.com/jckonewalik/yt-expense-tracker/types"
+	_ "github.com/lib/pq"
 )
 
 var validate *validator.Validate
@@ -66,10 +69,26 @@ func handleSignup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// check if user already exists
+	db, err := sql.Open("postgres", fmt.Sprintf("postgres://%s:%s@localhost:5432/%s?sslmode=disable", "ytexpensestracker", "admin@123", "ytexpensestracker"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
+	rows, err := db.Query("SELECT 1 FROM users WHERE email = $1 OR login = $2", input.Email, input.Login)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rows.Close()
+	if rows.Next() {
+		httputils.WriteError(w, http.StatusBadRequest, fmt.Errorf("there is already a user registered with this login or email"))
+		return
+	}
 
 	// persist user in database
 
 	// create user in keycloak
 
 	// return response
+	httputils.WriteJSON(w, http.StatusCreated, nil)
 }
