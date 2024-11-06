@@ -112,7 +112,15 @@ func handleSignup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// persist user in database
-	_, err = db.Exec("INSERT INTO users (login, email, first_name, last_name) VALUES ($1, $2, $3, $4)", input.Login, input.Email, input.FirstName, input.LastName)
+	tx, err := db.BeginTx(r.Context(), nil)
+	if err != nil {
+		logger.Log.Error.Printf("error starting db transaction: %v", err)
+		httputils.WriteError(w, http.StatusInternalServerError, fmt.Errorf("something wrong happend"))
+		return
+	}
+	defer tx.Rollback()
+
+	_, err = tx.Exec("INSERT INTO users (login, email, first_name, last_name) VALUES ($1, $2, $3, $4)", input.Login, input.Email, input.FirstName, input.LastName)
 	if err != nil {
 		logger.Log.Error.Printf("error inserting user. payload: %v. error: %v", input, err)
 		httputils.WriteError(w, http.StatusInternalServerError, fmt.Errorf("something wrong happend"))
@@ -146,8 +154,7 @@ func handleSignup(w http.ResponseWriter, r *http.Request) {
 	defer res.Body.Close()
 	if res.StatusCode != 200 {
 		var resp KeycloakErrorResponse
-		err := json.NewDecoder(res.Body).Decode(&resp)
-		if err != nil {
+		if err = json.NewDecoder(res.Body).Decode(&resp); err != nil {
 			logger.Log.Error.Printf("error reading keycloak token response. %v", err)
 			httputils.WriteError(w, http.StatusInternalServerError, fmt.Errorf("something wrong happend"))
 			return
@@ -187,13 +194,18 @@ func handleSignup(w http.ResponseWriter, r *http.Request) {
 	defer res.Body.Close()
 	if res.StatusCode != 201 {
 		var resp KeycloakErrorResponse
-		err := json.NewDecoder(res.Body).Decode(&resp)
-		if err != nil {
+		if err = json.NewDecoder(res.Body).Decode(&resp); err != nil {
 			logger.Log.Error.Printf("error reading keycloak users response. %v", err)
 			httputils.WriteError(w, http.StatusInternalServerError, fmt.Errorf("something wrong happend"))
 			return
 		}
 		logger.Log.Error.Printf("error creating keycloak user. %v", resp.Message)
+		httputils.WriteError(w, http.StatusInternalServerError, fmt.Errorf("something wrong happend"))
+		return
+	}
+
+	if err = tx.Commit(); err != nil {
+		logger.Log.Error.Printf("error commiting transaction. %v", err)
 		httputils.WriteError(w, http.StatusInternalServerError, fmt.Errorf("something wrong happend"))
 		return
 	}
