@@ -6,7 +6,8 @@ import (
 )
 
 type Environment struct {
-	JwtSecret string
+	JwtSecret           string
+	AuthApiClientSecret string
 }
 
 var Env = NewEnvironment()
@@ -18,7 +19,13 @@ func NewEnvironment() Environment {
 		log.Fatal("missing environment variable JWT_SECRET")
 	}
 
+	authApiClientSecret := os.Getenv("AUTH_API_CLIENT_SECRET")
+	if authApiClientSecret == "" {
+		log.Fatal("missing environtment variable AUTH_API_CLIENT_SECRET")
+	}
+
 	return Environment{
-		JwtSecret: jwtSecret,
+		JwtSecret:           jwtSecret,
+		AuthApiClientSecret: authApiClientSecret,
 	}
 }

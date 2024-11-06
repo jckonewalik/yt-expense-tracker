@@ -1,15 +1,20 @@
 package main
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/jckonewalik/yt-expense-tracker/config"
 	"github.com/jckonewalik/yt-expense-tracker/services/auth"
 	"github.com/jckonewalik/yt-expense-tracker/services/httputils"
 	"github.com/jckonewalik/yt-expense-tracker/types"
@@ -43,6 +48,10 @@ func handleHello(w http.ResponseWriter, r *http.Request) {
 	httputils.WriteJSON(w, http.StatusOK, fmt.Sprintf("Hello, %s", name))
 }
 
+type TokenResponse struct {
+	AccessToken string `json:"access_token"`
+}
+
 func handleSignup(w http.ResponseWriter, r *http.Request) {
 	// decode payload
 	var input types.SignUpInput
@@ -69,6 +78,7 @@ func handleSignup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// check if user already exists
+
 	db, err := sql.Open("postgres", fmt.Sprintf("postgres://%s:%s@localhost:5432/%s?sslmode=disable", "ytexpensestracker", "admin@123", "ytexpensestracker"))
 	if err != nil {
 		log.Fatal(err)
@@ -92,6 +102,56 @@ func handleSignup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// create user in keycloak
+	requestBody := url.Values{
+		"grant_type":    []string{"client_credentials"},
+		"client_id":     []string{"my-api"},
+		"client_secret": []string{config.Env.AuthApiClientSecret},
+	}
+	dataReader := requestBody.Encode()
+	req, err := http.NewRequest(http.MethodPost, "http://localhost:8080/realms/yt-expense-tracker/protocol/openid-connect/token",
+		strings.NewReader(dataReader))
+	if err != nil {
+		log.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	client := http.Client{
+		Timeout: 30 * time.Second,
+	}
+	res, err := client.Do(req)
+	if err != nil || res.StatusCode != 200 {
+		log.Fatal(err)
+	}
+	defer res.Body.Close()
+
+	var token TokenResponse
+	json.NewDecoder(res.Body).Decode(&token)
+
+	userPayload := map[string]any{"email": input.Email, "username": input.Login, "credentials": []map[string]any{{"type": "password", "value": input.Password, "temporary": false}},
+		"firstName": input.FirstName, "lastName": input.LastName, "emailVerified": false, "enabled": true, "requiredActions": []any{}, "groups": []any{}}
+	jsonBody, err := json.Marshal(userPayload)
+	if err != nil {
+		log.Fatal(err)
+	}
+	bodyReader := bytes.NewReader(jsonBody)
+	req, err = http.NewRequest(http.MethodPost, "http://localhost:8080/admin/realms/yt-expense-tracker/users", bodyReader)
+	if err != nil {
+		log.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token.AccessToken))
+
+	res, err = client.Do(req)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer res.Body.Close()
+
+	b, err := io.ReadAll(res.Body)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	fmt.Println(string(b))
 
 	// return response
 	httputils.WriteJSON(w, http.StatusCreated, nil)

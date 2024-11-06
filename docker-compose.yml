@@ -6,7 +6,7 @@ services:
     environment:
       - KEYCLOAK_ADMIN=${KEYCLOAK_ADMIN_USER}
       - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD}
-    command: start-dev --db postgres --db-url-host keycloak_db --db-username ${KEYCLOAK_DB_USER} --db-password ${KEYCLOAK_DB_PASSWORD}
+    command: start-dev --db postgres --db-url-host keycloak_db --db-username ${KEYCLOAK_DB_USER} --db-password ${KEYCLOAK_DB_PASSWORD} --log-level=DEBUG
   keycloak_db:
     image: postgres:17.0
     restart: always
