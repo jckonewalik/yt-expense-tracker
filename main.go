@@ -86,6 +86,10 @@ func handleSignup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// persist user in database
+	_, err = db.Exec("INSERT INTO users (login, email, first_name, last_name) VALUES ($1, $2, $3, $4)", input.Login, input.Email, input.FirstName, input.LastName)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// create user in keycloak
 
