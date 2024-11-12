@@ -8,3 +8,16 @@ grant_type=password
 
 ###
 GET http://localhost:3000/api/v1/hello
+
+
+###
+POST http://localhost:3000/api/v1/signup
+
+{
+    "login": "joao",
+    "email": "joao@test.com",
+    "first_name": "Joao",
+    "last_name": "Souza",
+    "password": "admin@123",
+    "password_confirmation": "admin@123"
+}
